@@ -7,10 +7,20 @@
   :run-x {:ns-default intronic.electrify-html
           :exec-fn -main
           :exec-args {}}
-  :build {:deps {io.github.clojure/tools.build
-                 {:mvn/version "0.10.5"}}
-          :ns-default build}
+
   :test {:extra-paths ["test"]
          :extra-deps {org.clojure/test.check {:mvn/version "1.1.1"}
                       io.github.cognitect-labs/test-runner
-                      {:git/tag "v0.5.1" :git/sha "dfb30dd"}}}}}
+                      {:git/tag "v0.5.1" :git/sha "dfb30dd"}}}
+
+    ; see build.clj
+  :build {:deps {io.github.clojure/tools.build {:mvn/version "0.10.5"}
+                 slipset/deps-deploy           {:mvn/version "0.2.2"}}
+          :ns-default build}
+
+  :deploy {:extra-deps {slipset/deps-deploy {:mvn/version "0.2.2"}}
+           :exec-fn deps-deploy.deps-deploy/deploy
+           :exec-args {:installer :remote
+                       :sign-releases? false #_true ; dont sign for now
+                       :artifact "deps-deploy.jar"
+                       :pom-file "pom.xml"}}}}

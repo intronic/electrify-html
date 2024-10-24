@@ -38,6 +38,26 @@ Run that uberjar:
 
     $ java -jar target/com.github.intronic/electrify-html-0.1.0-SNAPSHOT.jar
 
+This will produce an updated `pom.xml` file with synchronized dependencies inside the `META-INF`
+directory inside `target/classes` and the JAR in `target`. You can update the version (and SCM tag)
+information in generated `pom.xml` by updating `build.clj`.
+
+Apply (and push) the version tag to the git repo:
+
+    $ clojure -T:build git-tag-version
+
+Deploy it to Clojars -- needs `CLOJARS_USERNAME` and `CLOJARS_PASSWORD` environment
+variables (requires the `ci` & `git-tag-version` tasks be run first):
+
+    $ clojure -T:build deploy
+
+Your library will be deployed to intronic/electrify-html on clojars.org by default.
+
+Install it locally (requires the `ci` task be run first):
+
+    $ clojure -T:build install
+
+
 ## Options
 
 FIXME: listing of options this app accepts.
