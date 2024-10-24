@@ -1,7 +1,6 @@
 (ns intronic.electrify-html-test
-  (:require [clojure.test :refer :all]
-            [intronic.electrify-html :refer :all]))
+  (:require [hyperfiddle.rcf :as rcf]))
 
-(deftest a-test
-  (testing "FIXME, I fail."
-    (is (= 0 1))))
+(hyperfiddle.rcf/enable!)
+
+(require '[intronic.electrify-html])

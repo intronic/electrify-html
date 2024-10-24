@@ -1,10 +1,12 @@
 {:paths ["src" "resources"]
- :deps {org.clojure/clojure {:mvn/version "1.12.0"}}
+ :deps {org.clojure/clojure {:mvn/version "1.12.0"}
+        org.clj-commons/hickory {:mvn/version "0.7.5"}
+        com.hyperfiddle/rcf {:mvn/version "20220926-202227"}}
  :aliases
- {:run-m {:main-opts ["-m" "intronic.electrify-html"]}
+ {:dev {:extra-paths ["src-dev"]}
   :run-x {:ns-default intronic.electrify-html
-          :exec-fn greet
-          :exec-args {:name "Clojure"}}
+          :exec-fn -main
+          :exec-args {}}
   :build {:deps {io.github.clojure/tools.build
                  {:mvn/version "0.10.5"}}
           :ns-default build}
