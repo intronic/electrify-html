@@ -10,13 +10,13 @@ Download from https://github.com/intronic/electrify-html
 
 Run the project directly, via `:exec-fn`:
 
-    $ clojure -X:run-x :file _file_name_ [:keep-comments true]
+    $ clojure -X:run-x :file _file_name_
   eg:
-    $ clojure -X:run-x :file ./resources/test/badge.html
+    $ clojure -X:run-x :file ./badge.html
 
 Run the project:
 
-    $ clojure -X intronic.electrify-html/-main :file ./resources/test/badge.html
+    $ clojure -X intronic.electrify-html/-main :file ./badge.html
 
 Run the project's tests:
 
