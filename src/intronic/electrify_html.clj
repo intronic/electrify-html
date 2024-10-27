@@ -1,155 +1,144 @@
 (ns intronic.electrify-html
-  (:require [hickory.core :as h]
-            [clojure.string :as str]
-            [clojure.edn :as edn]
-            [clojure.pprint :as p]
-            [hyperfiddle.rcf :refer [tests]])
+  (:require
+   [cljfmt.core :as fmt]
+   [hickory.core :as h]
+   [hyperfiddle.rcf :refer [tests]]
+   [intronic.electrify-html.string :as s]
+   [intronic.electrify-html.utils :as u])
   (:gen-class))
 
 (defn spy [msg elt] (print msg) (prn elt) elt)
 
-;;; empty text on electric fragment types
-(defmulti empty-text? class)
+(def ^:dynamic *content-remove-blanks* true)
 
-(defmethod empty-text? java.lang.String
-  [elt] (= "" (str/trim elt)))
-
-(defmethod empty-text? org.jsoup.nodes.TextNode ; https://jsoup.org/apidocs/org/jsoup/nodes/TextNode.html
-  [elt] (empty-text? (h/as-hickory elt)))
-
-(defmethod empty-text? clojure.lang.ISeq
-  [elts] (every? empty-text? elts))
-
-(defmethod empty-text? clojure.lang.IPersistentVector
-  [elts] (every? empty-text? elts))
-
-(defmethod empty-text? :default
-  [_] false)
-
-(def not-empty-text? (comp not empty-text?))
-
-(defn class-first [{:keys [class] :as attrs}]
-  (if class
-    (cons [:class class] (seq (dissoc attrs :class)))
-    (seq attrs)))
-
-(defn text-str [t]
-  (if-not (empty? (str/trim t)) (str "(dom/text " (pr-str t) ")") ""))
-
-(defn props-str [attrs]
-  (letfn [(attr-str [{:keys [class] :as attrs}]
-            (let [class-line (if class
-                               (str (pr-str :class class) (if (> (count attrs) 1) "\n " ""))
-                               "")]
-              (str class-line (str/join " " (map (partial apply pr-str) (dissoc attrs :class))))))]
-    (str "(dom/props {" (attr-str attrs) "})")))
-
-(defn element-str [tag attrs content]
-  (str "(dom/" (name tag) " " (props-str attrs) "\n " content ")"))
-
-(defn comment-str [comment]
-  (str "\n ; " (str/join "\n ; " comment) "\n"))
-
-(defn print-code [s]
-  (p/with-pprint-dispatch
-    p/code-dispatch
-    (p/pprint
-     (clojure.edn/read-string s))))
-
+(defn remove-blank-content [coll]
+  (if *content-remove-blanks* (u/remove-blank-lines coll) coll))
 
 ;;; convert html fragments to electric dom code
+;;; returns string
 
 ;; hickory node types: :element, :comment, :document, :document-type
 ;; text nodes are converted to java.lang.String
 (defmulti electrify (fn [arg] (get arg :type (class arg))))
 
-
 (defmethod electrify nil ; node without content
   [_] "")
 
-(defmethod electrify java.lang.String
+(defmethod electrify String ; hickory text node; type String
+  electrify-str
   [elt]
-  (text-str elt))
+  (s/text-str elt))
 
-(defmethod electrify org.jsoup.nodes.Node
-  [elt]
-  (electrify (h/as-hickory elt)))
-
-(defmethod electrify :element
+(defmethod electrify :element ; hickory node :type :element
+  electrify-element
   [{:keys [tag attrs content]}]
-  (element-str tag attrs (electrify content)))
+  (s/element-str tag attrs (electrify content)))
 
-(defmethod electrify :comment
+(defmethod electrify :comment ; hickory node :type :comment
+  electrify-comment
   [{:keys [content]}]
-  (comment-str content))
+  (s/comment-str (s/siblings-str content)))
 
-(defmethod electrify clojure.lang.LazySeq
+(defmethod electrify clojure.lang.Sequential ; hickory fragments or children
+  electrify-vec
   [elts]
-  (->> (doall elts) (map electrify) (str/join "\n ")))
-
-(defmethod electrify clojure.lang.PersistentVector
-  [elts]
-  (->> elts (map electrify) (str/join "\n ")))
+  ;; hickory text content is already strings so remove blanks before electrify
+  (->> elts
+       remove-blank-content
+       (mapv electrify)
+       s/siblings-str))
 
 (defmethod electrify :default
+  electrify-default
   [elt] (throw (ex-info (str "Unknown element " (pr-str elt)) {:data elt})))
 
-(tests
- ;; Helpers
- (empty-text? "\n") := true
- (map str/trim (map h/as-hickory (h/parse-fragment "\n"))) := '("")
- (empty-text? [""]) := true
- (empty-text? (h/parse-fragment "\n")) := true
- (empty-text? (h/parse-fragment "<hr/>")) := false
-
- (not-empty-text? "\n") := (not (empty-text? "\n"))
- (not-empty-text? (h/parse-fragment "<hr/>")) := (not (empty-text? (h/parse-fragment "<hr/>")))
-
- (class-first {:a 1 :b 2}) := '([:a 1] [:b 2])
- (class-first {:a 1 :b 2 :class "ok" :d 3}) := '([:class "ok"] [:a 1] [:b 2] [:d 3])
-
- (text-str "hello") := "(dom/text \"hello\")"
- (text-str " \t  \n ") := ""
-
- (props-str {:a 1 :b 2}) := "(dom/props {:a 1 :b 2})"
- (props-str {:a 1 :b 2 :class "ok" :d 3}) := "(dom/props {:class \"ok\"\n :a 1 :b 2 :d 3})"
-
- (element-str :div {:class "k"} "(dom/text \"Hello\")") := "(dom/div (dom/props {:class \"k\"})\n (dom/text \"Hello\"))"
- :rcf)
-
-(tests
- ;; text and comments
- (electrify "text node") := "(dom/text \"text node\")"
- (electrify (h/as-hickory (first (h/parse-fragment "text node")))) := "(dom/text \"text node\")"
- (map electrify (h/parse-fragment "text node")) := '("(dom/text \"text node\")")
-
- (electrify (h/parse-fragment "<!-- Comment --><div>text node</div>")) :=
- "\n ;  Comment \n\n (dom/div (dom/props {})\n (dom/text \"text node\"))"
- :rcf)
-
-(tests
- (let [frag "\n<span aria-label=\"lab\" class=\"c\"> Badge </span>\n"
-       frag-result "(dom/span (dom/props {:class \"c\"\n :aria-label \"lab\"})\n (dom/text \" Badge \"))"]
-   (->> frag h/parse-fragment (map h/as-hickory) (filter not-empty-text?) electrify) := frag-result
-   (->> frag h/parse-fragment (filter not-empty-text?) electrify) := frag-result
-   (->> frag h/parse-fragment (filterv not-empty-text?) electrify) := frag-result)
- ; element with no content
- (electrify (map h/as-hickory (h/parse-fragment "<img src=\"id\" />"))) := "(dom/img (dom/props {:src \"id\"})\n )"
- :rcf)
+(defn electric-component [s]
+  (->> s
+       h/parse-fragment
+       (map h/as-hickory)
+       electrify
+       s/electric-component-str
+       fmt/reformat-string))
 
 (defn -main
   "Convert file of html fragments to electric dom nodes"
   [& args]
-  (let [comments (-> args first :keep-comments boolean)
-        file (-> args first :file str)]
+  (let [file (-> args first :file str)]
     (if (seq file)
-     (->> file
-          slurp
-          h/parse-fragment
-          (map h/as-hickory)
-          (filter not-empty-text?)
-          electrify
-          (#(if comments
-              (println %)
-              (print-code %))))
+      (->> file slurp electric-component println)
       (println "Usage: :file _file_name_ [:keep-comments true]"))))
+
+(tests
+
+ (doseq [newline [true false]]
+   (binding [s/*siblings-on-new-line* newline]
+     ;; nil
+     (electrify nil) := ""
+
+     ;; String
+     (electrify "text node") := "(dom/text \"text node\")"
+
+     (->> (h/parse-fragment "text node") first h/as-hickory electrify)
+     := "(dom/text \"text node\")"
+
+     ;; :element
+     (->> (h/parse-fragment "<div a=\"1\" class=\"c\">helo</div>") first h/as-hickory electrify) :=
+     (str "(dom/div" "\n"
+          "(dom/props {:class \"c\"\n:a \"1\"})" "\n"
+          "(dom/text \"helo\"))")
+
+     ;; comment
+     (->> (h/parse-fragment "<!-- Comment -->") first h/as-hickory electrify) :=
+     (str "(comment  Comment )")
+
+     ;; Vector of parse-fragment (mapv)
+     (->> (h/parse-fragment "<!-- Comment --><div a=\"1\" class=\"c\">helo</div>") (mapv h/as-hickory) electrify) :=
+     (str "(comment  Comment )"
+          (if s/*siblings-on-new-line* "\n" " ")
+          "(dom/div" "\n"
+          "(dom/props {:class \"c\"\n:a \"1\"})" "\n"
+          "(dom/text \"helo\"))")
+
+     ;; Lazy-seq of parse-fragment (map)
+     (->> (h/parse-fragment "<!-- Comment --><div a=\"1\" class=\"c\">helo</div>") (map h/as-hickory) electrify) :=
+     (str "(comment  Comment )"
+          (if s/*siblings-on-new-line* "\n" " ")
+          "(dom/div" "\n"
+          "(dom/props {:class \"c\"\n:a \"1\"})" "\n"
+          "(dom/text \"helo\"))")
+
+     ; :content of <div> is a vector
+     (->> (h/parse-fragment "<div><span>s1</span><span>s2</span></div>") (map h/as-hickory) electrify) :=
+     (str "(dom/div" "\n"
+          "(dom/props {})" "\n"
+          "(dom/span" "\n"
+          "(dom/props {})" "\n"
+          "(dom/text \"s1\"))"
+          (if s/*siblings-on-new-line* "\n" " ")
+          "(dom/span" "\n" "(dom/props {})" "\n"
+          "(dom/text \"s2\"))" ")"))))
+
+(tests
+ "formatted electric-component"
+ (doseq [remove-blanks [#_true false]]
+   (binding [*content-remove-blanks* remove-blanks]
+     (->> "\n<!-- Comment --><div>\n\n<span>\ns1\n</span>\n<!-- Comm2 -->\n<img src=\"abc\" /><span aria-label=\"lab\" class=\"k\">s2</span>\n\n</div>"
+          electric-component) :=
+     (str "(e/defn Component\n"
+          "  []\n"
+          (if *content-remove-blanks* "" "\n")
+          "  (comment  Comment)\n"
+          "  (dom/div\n"
+          "   (dom/props {})\n"
+          (if *content-remove-blanks* "" "\n")
+          "   (dom/span\n"
+          "    (dom/props {})\n"
+          "    (dom/text \"\\ns1\\n\"))\n"
+          (if *content-remove-blanks* "" "\n")
+          "   (comment  Comm2)\n"
+          (if *content-remove-blanks* "" "\n")
+          "   (dom/img (dom/props {:src \"abc\"}))\n"
+          "   (dom/span\n"
+          "    (dom/props {:class \"k\"\n"
+          "                :aria-label \"lab\"})\n"
+          "    (dom/text \"s2\"))))"))))
