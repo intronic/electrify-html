@@ -10,14 +10,14 @@
           :exec-fn -main
           :exec-args {}}
 
-  :test {:extra-paths ["test"]
-         :extra-deps {org.clojure/test.check {:mvn/version "1.1.1"}
-                      io.github.cognitect-labs/test-runner
-                      {:git/tag "v0.5.1" :git/sha "dfb30dd"}}}
+  :test {:extra-deps {io.github.cognitect-labs/test-runner {:git/tag "v0.5.1" :git/sha "dfb30dd"}}
+         :jvm-opts ["-Dhyperfiddle.rcf.generate-tests=true"]
+         :main-opts ["-m" "cognitect.test-runner" "-d" "src" "-r" "intronic.electrify-html.*"]
+         :exec-fn cognitect.test-runner.api/test}
 
-    ; see build.clj
+  ; see build.clj
   :build {:deps {io.github.clojure/tools.build {:mvn/version "0.10.5"}
-                 slipset/deps-deploy           {:mvn/version "0.2.2"}}
+                 io.github.seancorfield/build-clj {:git/tag "v0.9.2" :git/sha "9c9f078"}}
           :ns-default build}
 
   :deploy {:extra-deps {slipset/deps-deploy {:mvn/version "0.2.2"}}

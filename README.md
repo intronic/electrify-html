@@ -20,7 +20,7 @@ Run the project:
 
 Run the project's tests:
 
-    $ clojure -T:build test
+    $ clojure -T:build run-tests
 
 Run the project's CI pipeline and build an uberjar (this will fail until you edit the tests to pass):
 
