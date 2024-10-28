@@ -21,7 +21,7 @@
     (str "(dom/props {" (attr-str attrs) "})")))
 
 (defn comment-str [content]
-  (str "(comment " content ")"))
+  (str "(comment " (pr-str content) ")"))
 
 (defn electric-component-str
   "Wrap body in an electric component."
@@ -52,7 +52,7 @@
  "(dom/props {:class \"ok\"\n:a 1 :b 2 :d 3})"
 
  (comment-str "Hello") :=
- "(comment Hello)"
+ "(comment \"Hello\")"
 
  (electric-component-str "(dom/div\n(dom/props {})\n(dom/text \"ok\"))") :=
  "(e/defn Component\n[]\n(dom/div\n(dom/props {})\n(dom/text \"ok\")))"

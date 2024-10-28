@@ -88,20 +88,20 @@
           "(dom/text \"helo\"))")
 
      ;; comment
-     (->> (h/parse-fragment "<!-- Comment -->") first h/as-hickory electrify) :=
-     (str "(comment  Comment )")
+     (->> (h/parse-fragment "<!-- Comment1 -->") first h/as-hickory electrify) :=
+     (str "(comment \" Comment1 \")")
 
      ;; Vector of parse-fragment (mapv)
-     (->> (h/parse-fragment "<!-- Comment --><div a=\"1\" class=\"c\">helo</div>") (mapv h/as-hickory) electrify) :=
-     (str "(comment  Comment )"
+     (->> (h/parse-fragment "<!-- Comment2 --><div a=\"1\" class=\"c\">helo</div>") (mapv h/as-hickory) electrify) :=
+     (str "(comment \" Comment2 \")"
           (if s/*siblings-on-new-line* "\n" " ")
           "(dom/div" "\n"
           "(dom/props {:class \"c\"\n:a \"1\"})" "\n"
           "(dom/text \"helo\"))")
 
      ;; Lazy-seq of parse-fragment (map)
-     (->> (h/parse-fragment "<!-- Comment --><div a=\"1\" class=\"c\">helo</div>") (map h/as-hickory) electrify) :=
-     (str "(comment  Comment )"
+     (->> (h/parse-fragment "<!-- Comment3 --><div a=\"1\" class=\"c\">helo</div>") (map h/as-hickory) electrify) :=
+     (str "(comment \" Comment3 \")"
           (if s/*siblings-on-new-line* "\n" " ")
           "(dom/div" "\n"
           "(dom/props {:class \"c\"\n:a \"1\"})" "\n"
@@ -122,12 +122,12 @@
  "formatted electric-component"
  (doseq [remove-blanks [#_true false]]
    (binding [*content-remove-blanks* remove-blanks]
-     (->> "\n<!-- Comment --><div>\n\n<span>\ns1\n</span>\n<!-- Comm2 -->\n<img src=\"abc\" /><span aria-label=\"lab\" class=\"k\">s2</span>\n\n</div>"
+     (->> "\n<!-- Comment1 --><div>\n\n<span>\ns1\n</span>\n<!-- Comm2 -->\n<img src=\"abc\" /><span aria-label=\"lab\" class=\"k\">s2</span>\n\n</div>"
           electric-component) :=
      (str "(e/defn Component\n"
           "  []\n"
           (if *content-remove-blanks* "" "\n")
-          "  (comment  Comment)\n"
+          "  (comment \" Comment1 \")\n"
           "  (dom/div\n"
           "   (dom/props {})\n"
           (if *content-remove-blanks* "" "\n")
@@ -135,7 +135,7 @@
           "    (dom/props {})\n"
           "    (dom/text \"\\ns1\\n\"))\n"
           (if *content-remove-blanks* "" "\n")
-          "   (comment  Comm2)\n"
+          "   (comment \" Comm2 \")\n"
           (if *content-remove-blanks* "" "\n")
           "   (dom/img (dom/props {:src \"abc\"}))\n"
           "   (dom/span\n"
