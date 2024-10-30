@@ -9,17 +9,20 @@
 
 (defn spy [msg elt] (print msg) (prn elt) elt)
 
+(def ^:dynamic *default-ns* "dom")
+(def ^:dynamic *element-ns* *default-ns*)
 (def ^:dynamic *content-remove-blanks* true)
+
+(defn elt-str [elt] (str *default-ns* "/" elt))
 
 (defn remove-blank-content [coll]
   (if *content-remove-blanks* (u/remove-blank-lines coll) coll))
 
-;;; convert html fragments to electric dom code
-;;; returns string
-
+;;; convert html fragments to electric dom code; returns string
+(defmulti electrify (fn [arg] (get arg :type (class arg))))
 ;; hickory node types: :element, :comment, :document, :document-type
 ;; text nodes are converted to java.lang.String
-(defmulti electrify (fn [arg] (get arg :type (class arg))))
+;; assume string nodes are all "dom" (eg dom/text and svg/text are the same)
 
 (defmethod electrify nil ; node without content
   [_] "")
@@ -27,12 +30,15 @@
 (defmethod electrify String ; hickory text node; type String
   electrify-str
   [elt]
-  (s/text-str elt))
+  (s/text-str *default-ns* elt))
 
 (defmethod electrify :element ; hickory node :type :element
   electrify-element
   [{:keys [tag attrs content]}]
-  (s/element-str tag attrs (electrify content)))
+  (binding [*element-ns* (if (= tag :svg) "svg" *element-ns*)] ; either use :svg or the current value (svg or default)
+    (s/element-str *element-ns* *default-ns* tag
+                   (if (= "svg" *element-ns*) (s/rename-svg-attributes attrs) attrs)
+                   (electrify content))))
 
 (defmethod electrify :comment ; hickory node :type :comment
   electrify-comment
@@ -69,7 +75,12 @@
       (println "Usage: :file _file_name_ [:keep-comments true]"))))
 
 (tests
+ (doseq [ns ["dom" "svg"]
+         elt ["p" "text"]]
+   (binding [*default-ns* ns]
+     (elt-str elt) := (str ns "/" elt))))
 
+(tests
  (doseq [newline [true false]]
    (binding [s/*siblings-on-new-line* newline]
      ;; nil
@@ -119,26 +130,68 @@
           "(dom/text \"s2\"))" ")"))))
 
 (tests
+ "empty formatted electric-component"
+ (electric-component "") :=
+ (str "(e/defn Component\n"
+      "  []\n"
+      "  (e/client))"))
+
+(tests
  "formatted electric-component"
- (doseq [remove-blanks [#_true false]]
+ (doseq [remove-blanks [true false]]
    (binding [*content-remove-blanks* remove-blanks]
      (->> "\n<!-- Comment1 --><div>\n\n<span>\ns1\n</span>\n<!-- Comm2 -->\n<img src=\"abc\" /><span aria-label=\"lab\" class=\"k\">s2</span>\n\n</div>"
           electric-component) :=
      (str "(e/defn Component\n"
           "  []\n"
+          "  (e/client\n"
           (if *content-remove-blanks* "" "\n")
-          "  (comment \" Comment1 \")\n"
-          "  (dom/div\n"
-          "   (dom/props {})\n"
-          (if *content-remove-blanks* "" "\n")
-          "   (dom/span\n"
+          "   (comment \" Comment1 \")\n"
+          "   (dom/div\n"
           "    (dom/props {})\n"
-          "    (dom/text \"\\ns1\\n\"))\n"
           (if *content-remove-blanks* "" "\n")
-          "   (comment \" Comm2 \")\n"
+          "    (dom/span\n"
+          "     (dom/props {})\n"
+          "     (dom/text \"\\ns1\\n\"))\n"
           (if *content-remove-blanks* "" "\n")
-          "   (dom/img (dom/props {:src \"abc\"}))\n"
-          "   (dom/span\n"
-          "    (dom/props {:class \"k\"\n"
-          "                :aria-label \"lab\"})\n"
-          "    (dom/text \"s2\"))))"))))
+          "    (comment \" Comm2 \")\n"
+          (if *content-remove-blanks* "" "\n")
+          "    (dom/img (dom/props {:src \"abc\"}))\n"
+          "    (dom/span\n"
+          "     (dom/props {:class \"k\"\n"
+          "                 :aria-label \"lab\"})\n"
+          "     (dom/text \"s2\"))))"
+          ")"))))
+
+(tests
+ "embedded svg content, :xmlns is renamed :data-xmlns"
+ (name :viewBox) := "viewBox"
+ (let [svg "<div>
+              <span>Helo</span>
+              <svg viewBox=\"0 0 300 200\" version=\"1.1\" width=\"300\" height=\"200\" xmlns=\"http://www.w3.org/2000/svg\">
+                <rect width=\"100%\" height=\"100%\" fill=\"red\" />
+                <text fill=\"white\">SVG thing</text>
+                <circle cx=\"150\" cy=\"100\" r=\"80\" />
+              </svg>
+              <span>Bye</span>
+            </div>"]
+   (->> svg electric-component) :=
+   (str "(e/defn Component\n"
+        "  []\n"
+        "  (e/client\n"
+        "   (dom/div\n"
+        "    (dom/props {})\n"
+        "    (dom/span\n"
+        "     (dom/props {})\n"
+        "     (dom/text \"Helo\"))\n"
+        "    (svg/svg\n"
+        "     (dom/props {:version \"1.1\" :width \"300\" :height \"200\" :viewBox \"0 0 300 200\" :data-xmlns \"http://www.w3.org/2000/svg\"})\n"
+        "     (svg/rect (dom/props {:width \"100%\" :height \"100%\" :fill \"red\"}))\n"
+        "     (svg/text\n"
+        "      (dom/props {:fill \"white\"})\n"
+        "      (dom/text \"SVG thing\"))\n"
+        "     (svg/circle (dom/props {:cx \"150\" :cy \"100\" :r \"80\"})))\n"
+        "    (dom/span\n"
+        "     (dom/props {})\n"
+        "     (dom/text \"Bye\"))))"
+        ")")))

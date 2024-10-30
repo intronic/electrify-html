@@ -38,6 +38,13 @@
               "\n"
               {:type :element :attrs nil :tag :span :content ["s2"]}
               "\n"]})
+
+ (->> (h/parse-fragment "<svg viewBox=\"0 0 1 1\"</svg>")
+      (map h/as-hickory)) :=
+ '({:type :element
+    :attrs {:viewbox "0 0 1 1"}
+    :tag :svg
+    :content nil})
  :rcf)
 
 (tests
